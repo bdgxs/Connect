@@ -12,4 +12,4 @@ def run_file(path):
 # Example usage
 url = "https://raw.githubusercontent.com/bdgxs/ts.py/main/ts.py"
 download_file(url)
-run_file(/storage/emulated/0/)
+run_file(storage/emulated/0/)
