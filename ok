@@ -4,14 +4,9 @@ local DataStoreService = game:GetService("DataStoreService")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local HttpService = game:GetService("HttpService")
-local RunService = game:GetService("RunService")
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
-
--- Create a ScreenGui
-local screenGui = Instance.new("ScreenGui", playerGui)
-screenGui.Name = "FuturisticGUI"
 
 -- Utility Functions
 local function safePcall(func, ...)
@@ -29,7 +24,10 @@ local function createUIElement(class, properties, parent)
     return element
 end
 
--- UI Creation
+-- Create the ScreenGui
+local screenGui = createUIElement("ScreenGui", {Name = "FuturisticGUI"}, playerGui)
+
+-- Main Frame
 local mainFrame = createUIElement("Frame", {
     Size = UDim2.new(0.5, 0, 0.5, 0),
     Position = UDim2.new(0.25, 0, 0.25, 0),
@@ -44,8 +42,9 @@ createUIElement("UIGradient", {
     }
 }, mainFrame)
 
-createUIElement("UICorner", { CornerRadius = UDim.new(0, 10) }, mainFrame)
+createUIElement("UICorner", {CornerRadius = UDim.new(0, 10)}, mainFrame)
 
+-- Open/Close Button
 local openCloseButton = createUIElement("TextButton", {
     Size = UDim2.new(0, 50, 0, 50),
     Position = UDim2.new(0, 10, 1, -60),
@@ -56,7 +55,7 @@ local openCloseButton = createUIElement("TextButton", {
     TextSize = 20
 }, screenGui)
 
-createUIElement("UICorner", { CornerRadius = UDim.new(1, 0) }, openCloseButton)
+createUIElement("UICorner", {CornerRadius = UDim.new(1, 0)}, openCloseButton)
 
 createUIElement("UIGradient", {
     Color = ColorSequence.new{
@@ -68,32 +67,32 @@ createUIElement("UIGradient", {
 -- Button Functionality
 openCloseButton.MouseButton1Click:Connect(function()
     local isVisible = mainFrame.Visible
-    local goal = {Size = isVisible and UDim2.new(0, 0, 0, 0) or UDim2.new(0.5, 0, 0.5, 0)}
-    TweenService:Create(mainFrame, TweenInfo.new(0.3), goal):Play()
+    local goalSize = isVisible and UDim2.new(0, 0, 0, 0) or UDim2.new(0.5, 0, 0.5, 0)
+    TweenService:Create(mainFrame, TweenInfo.new(0.3), {Size = goalSize}):Play()
     mainFrame.Visible = not mainFrame.Visible
-    openCloseButton.Text = isVisible and "Open" or "Close"
+    openCloseButton.Text = mainFrame.Visible and "Close" or "Open"
 end)
 
--- Tab Creation
-local function createTab(name)
+-- Tab Management
+local function createTab(name, parent)
     local tab = createUIElement("Frame", {
         Size = UDim2.new(1, 0, 1, 0),
         BackgroundTransparency = 1,
         Visible = false
-    }, mainFrame)
+    }, parent)
 
     local tabButton = createUIElement("TextButton", {
         Size = UDim2.new(0, 100, 0, 30),
-        Position = UDim2.new(0, 10 + (#mainFrame:GetChildren() - 1) * 110, 0, 0),
+        Position = UDim2.new(0, 10 + (#parent:GetChildren() - 1) * 110, 0, 0),
         Text = name,
         BackgroundTransparency = 0.5,
         BackgroundColor3 = Color3.new(0.1, 0.1, 0.2),
         TextColor3 = Color3.new(0.8, 0.8, 1),
         Font = Enum.Font.Gotham,
         TextSize = 14
-    }, mainFrame)
+    }, parent)
 
-    createUIElement("UICorner", { CornerRadius = UDim.new(0.2, 0) }, tabButton)
+    createUIElement("UICorner", {CornerRadius = UDim.new(0.2, 0)}, tabButton)
 
     createUIElement("UIGradient", {
         Color = ColorSequence.new{
@@ -103,7 +102,7 @@ local function createTab(name)
     }, tabButton)
 
     tabButton.MouseButton1Click:Connect(function()
-        for _, child in ipairs(mainFrame:GetChildren()) do
+        for _, child in ipairs(parent:GetChildren()) do
             if child:IsA("Frame") then
                 child.Visible = child == tab
             end
@@ -113,80 +112,33 @@ local function createTab(name)
     return tab
 end
 
-local scriptsTab = createTab("Scripts")
-local settingsTab = createTab("Settings")
+local scriptsTab = createTab("Scripts", mainFrame)
+local settingsTab = createTab("Settings", mainFrame)
 
--- Scripts Data Management
+-- Initial Setup for Script Management
 local scriptStore = DataStoreService:GetDataStore("UserScripts")
 local scriptList = {}
 
-local function updateScriptList()
-    scriptsTab:ClearAllChildren()
+-- Simplified Script Box for Adding Scripts
+local scriptBox = createUIElement("TextBox", {
+    Size = UDim2.new(1, -20, 0.7, 0),
+    Position = UDim2.new(0, 10, 0, 40),
+    MultiLine = true,
+    BackgroundColor3 = Color3.new(0.1, 0.1, 0.15),
+    TextColor3 = Color3.new(1, 1, 1),
+    Font = Enum.Font.Gotham,
+    TextSize = 14
+}, scriptsTab)
 
-    for index, scriptData in ipairs(scriptList) do
-        local scriptButton = createUIElement("TextButton", {
-            Size = UDim2.new(1, -40, 0, 30),
-            Position = UDim2.new(0, 0, 0, (index-1) * 30),
-            Text = "Execute " .. index,
-            BackgroundColor3 = Color3.new(0, 0.3, 0.6),
-            TextColor3 = Color3.new(1, 1, 1),
-            Font = Enum.Font.GothamBlack,
-            TextSize = 14
-        }, scriptsTab)
-
-        scriptButton.MouseButton1Click:Connect(function()
-            local success, func = safePcall(loadstring, scriptData.script)
-            if success then
-                safePcall(func)
-            end
-        end)
-
-        local toggle = createUIElement("TextButton", {
-            Size = UDim2.new(0, 30, 0, 30),
-            Position = UDim2.new(1, -35, 0, (index-1) * 30),
-            Text = scriptData.autoRun and "ON" or "OFF",
-            BackgroundColor3 = scriptData.autoRun and Color3.new(0, 1, 0) or Color3.new(1, 0, 0)
-        }, scriptsTab)
-
-        toggle.MouseButton1Click:Connect(function()
-            scriptData.autoRun = not scriptData.autoRun
-            toggle.Text = scriptData.autoRun and "ON" or "OFF"
-            toggle.BackgroundColor3 = scriptData.autoRun and Color3.new(0, 1, 0) or Color3.new(1, 0, 0)
-            saveScriptsToDataStore()
-        end)
+-- Handles Script Saving
+scriptBox.FocusLost:Connect(function(enterPressed)
+    if enterPressed then
+        table.insert(scriptList, {script = scriptBox.Text, autoRun = false})
+        saveScriptsToDataStore()
     end
-end
+end)
 
-local function loadScriptsFromDataStore()
-    local success, data = safePcall(scriptStore.GetAsync, scriptStore, player.UserId .. "_script")
-    if success and data then
-        local success2, scriptData = safePcall(HttpService.JSONDecode, HttpService, data)
-        if success2 then
-            scriptList = scriptData
-            for _, script in ipairs(scriptList) do
-                if script.autoRun then
-                    local success3, func = safePcall(loadstring, script.script)
-                    if success3 then
-                        safePcall(func)
-                    end
-                end
-            end
-            updateScriptList()
-        end
-    end
-end
-
-local function saveScriptsToDataStore()
-    local success, jsonData = safePcall(HttpService.JSONEncode, HttpService, scriptList)
-    if success then
-        safePcall(scriptStore.SetAsync, scriptStore, player.UserId .. "_script", jsonData)
-    end
-end
-
--- Initialize saved scripts
-loadScriptsFromDataStore()
-
--- Settings Tab
+-- Settings Tab Content
 local destroyButton = createUIElement("TextButton", {
     Size = UDim2.new(0, 100, 0, 30),
     Position = UDim2.new(0, 10, 0, 10),
@@ -201,20 +153,25 @@ destroyButton.MouseButton1Click:Connect(function()
     screenGui:Destroy()
 end)
 
--- Default Visibility and Drag Handling
+-- Save Scripts to DataStore
+local function saveScriptsToDataStore()
+    local success, jsonData = safePcall(HttpService.JSONEncode, HttpService, scriptList)
+    if success then
+        safePcall(scriptStore.SetAsync, scriptStore, player.UserId .. "_script", jsonData)
+    end
+end
+
+-- Load Scripts from DataStore on Initialization
+do
+    local success, data = safePcall(scriptStore.GetAsync, scriptStore, player.UserId .. "_script")
+    if success and data then
+        local decoded, scriptData = safePcall(HttpService.JSONDecode, HttpService, data)
+        if decoded then
+            scriptList = scriptData
+        end
+    end
+end
+
+-- Initial Visibility
 scriptsTab.Visible = true
-
--- Periodic Save
-RunService.Heartbeat:Connect(function()
-    if tick() - lastSaveTime > saveTimer then
-        saveScriptsToDataStore()
-        lastSaveTime = tick()
-    end
-end)
-
--- Close on Player Removal
-Players.PlayerRemoving:Connect(function(leavingPlayer)
-    if leavingPlayer == player then
-        saveScriptsToDataStore()
-    end
-end)
+mainFrame.Visible = false  -- Set Main Frame to initially
